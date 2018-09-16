@@ -1,0 +1,361 @@
+<style>
+.my_canvas {
+    background: #FFF; 
+    width: 800; 
+    height: 500; 
+    border: 0px;
+}
+body{
+    margin: 0px;
+    background-color:green;
+}
+#desc{
+	display:block;
+	position:absolute;
+	top:520px;
+	font-size:2em;
+}
+</style>
+<div id='desc'>
+	A game concept test. Rotate the hexagons until a hexagon's sides are all the same color. <br/>Left Click = rotate clock-wise. <br/>Right Click = rotate counter clock wise.
+</div>
+<canvas id="c" width="1600" height="1000" class="my_canvas"></canvas> 
+
+<script type="text/javascript">
+var c2 = document.getElementById('c').getContext('2d');
+canvaswidth = c2.width
+canvasheight = c2.height
+width = 120
+mapwidth = 16
+mapheight = 8
+height = Math.sqrt(3)/2 * width
+
+colors = ["#F22", "#3F3", "#33F"]
+colorsFill = ["#Fcc", "#cfc", "#ccF"]
+var stuckColor = "#ddd"
+window.onmouseup = function(e){
+
+    axial = hex_round(pixel_to_hex(layout, {x:e.clientX, y:e.clientY}))
+    x = axial.q
+    y = axial.r+Math.ceil(x/2)
+    hex = {x:x, y:y}
+    if(x<0 || y<0 || x>mapwidth-1 || y>mapheight-1){return false}
+    if(hexagons[hex.x][hex.y].stuck == true){return false}
+    if(e.button == 0){
+        rotHexCW(hex)
+    }else{
+        rotHexCCW(hex)
+    }
+    checkHexes()
+    drawMap()
+    return false
+}
+window.oncontextmenu = function(e){
+    return false
+}
+coloredHexes = [];
+stuckHexes = [];
+function Orientation(f0, f1, f2, f3, b0, b1, b2, b3, start_angle) {
+    return {f0: f0, f1: f1, f2: f2, f3: f3, b0: b0, b1: b1, b2: b2, b3: b3, start_angle: start_angle};
+}
+
+function Layout(orientation, size, origin) {
+    return {orientation: orientation, size: size, origin: origin};
+}
+var layout_flat = Orientation(3.0 / 2.0, 0.0, Math.sqrt(3.0) / 2.0, Math.sqrt(3.0), 2.0 / 3.0, 0.0, -1.0 / 3.0, Math.sqrt(3.0) / 3.0, 0.0);
+
+function pixel_to_hex(layout, p)
+{
+    var M = layout.orientation;
+    var size = layout.size;
+    var origin = layout.origin;
+    var pt = {x:(p.x - origin.x) / size.x, y:(p.y - origin.y) / size.y};
+    var q = M.b0 * pt.x + M.b1 * pt.y;
+    var r = M.b2 * pt.x + M.b3 * pt.y;
+    return {q:q, r:r, s:-q - r};
+}
+function hex_round(h)
+{
+    var q = Math.trunc(Math.round(h.q));
+    var r = Math.trunc(Math.round(h.r));
+    var s = Math.trunc(Math.round(h.s));
+    var q_diff = Math.abs(q - h.q);
+    var r_diff = Math.abs(r - h.r);
+    var s_diff = Math.abs(s - h.s);
+    if (q_diff > r_diff && q_diff > s_diff)
+    {
+        q = -r - s;
+    }
+    else
+        if (r_diff > s_diff)
+        {
+            r = -q - s;
+        }
+        else
+        {
+            s = -q - r;
+        }
+    return {q:q, r:r};
+}
+function exists(x, y){
+    if(x<0 || x>mapwidth-1 || y<0 || y>mapheight-1){return false}
+    return true
+}
+function stickHexagon(x, y){
+    if(!exists(x, y)){return false}
+    hexagons[x][y].stuck=true
+    stuckHexes.push({x:x,y:y})
+}
+
+function setSides(x, y, color, sides){
+    if(!exists(x,y)){return false}
+    console.log(hexagons[x][y].sides)
+    for(i=0;i<sides.length;i++){
+        hexagons[x][y].sides[sides[i]]=color
+    }
+    console.log(hexagons[x][y].sides)
+}
+function colorHex(hex, color){
+    coloredHexes.push({x:hex.x,y:hex.y})
+    hexagons[hex.x][hex.y].colored = color
+    stickHexagon(hex.x, hex.y)
+    stickHexagon(hex.x,hex.y+1)
+    stickHexagon(hex.x,hex.y-1)
+    stickHexagon(hex.x-1,hex.y)
+    stickHexagon(hex.x+1,hex.y)
+    setSides(hex.x, hex.y+1, color, [0,2])
+    setSides(hex.x, hex.y-1, color, [3,5])
+    if(hex.x%2==0){
+        setSides(hex.x-1, hex.y, color, [2,4])
+        setSides(hex.x-1, hex.y+1, color, [1,3])
+        setSides(hex.x+1, hex.y, color, [0,4])
+        setSides(hex.x+1, hex.y+1, color, [1,5])
+        stickHexagon(hex.x-1,hex.y+1)
+        stickHexagon(hex.x+1,hex.y+1)
+    }else{
+        setSides(hex.x-1, hex.y-1, color, [2,4])
+        setSides(hex.x-1, hex.y, color, [1,3])
+        setSides(hex.x+1, hex.y-1, color, [0,4])
+        setSides(hex.x+1, hex.y, color, [1,5])
+        stickHexagon(hex.x-1,hex.y-1)
+        stickHexagon(hex.x+1,hex.y-1)
+    
+    }
+}
+function checkHexes(){
+    for (var X=0; X < hexagons.length; X++){
+        for (var Y=0; Y < hexagons[X].length; Y++){
+            hexagon = hexagons[X][Y]
+            if(typeof hexagon.colored != "boolean"){continue}
+            hexagon.sides
+            var counts = {};
+            for (var i = 0; i < hexagon.sides.length; i++) {
+                counts[hexagon.sides[i]] = 1 + (counts[hexagon.sides[i]] || 0);
+            }
+            carr = Object.keys(counts)
+            if(carr.length == 1){
+                colorHex({x:X,y:Y},parseInt(carr[0]))
+                checkHexes()
+                break
+            }
+        }
+    }
+}
+function copyColor(color, tx, ty, tside){
+
+    if(!exists(tx, ty)){return false}
+    hexagons[tx][ty].sides[tside] = color
+}
+function rotHexCW(hex){
+    x = hex.x
+    y = hex.y
+    originalSides = hexagons[hex.x][hex.y].sides
+    hexagons[hex.x][hex.y].sides.unshift(hexagons[hex.x][hex.y].sides.pop())
+    newSides = hexagons[hex.x][hex.y].sides
+    if(x%2==0){  
+        copyColor(newSides[0], x-1, y, 3)
+        copyColor(newSides[2], x+1, y, 5)
+        copyColor(newSides[3], x+1, y+1, 0)  
+        copyColor(newSides[5], x-1, y+1, 2)      
+    }else{
+        copyColor(newSides[5], x-1, y, 2)        
+        copyColor(newSides[0], x-1, y-1, 3)
+        copyColor(newSides[2], x+1, y-1, 5)
+        copyColor(newSides[3], x+1, y, 0)  
+    }
+    copyColor(newSides[1], x, y-1, 4) 
+    copyColor(newSides[4], x, y+1, 1)
+}
+function rotHexCCW(hex){
+    x = hex.x
+    y = hex.y
+    originalSides = hexagons[hex.x][hex.y].sides
+    hexagons[hex.x][hex.y].sides.push(hexagons[hex.x][hex.y].sides.shift())
+    newSides = hexagons[hex.x][hex.y].sides
+    if(x%2==0){  
+        copyColor(newSides[0], x-1, y, 3)
+        copyColor(newSides[2], x+1, y, 5)
+        copyColor(newSides[3], x+1, y+1, 0)  
+        copyColor(newSides[5], x-1, y+1, 2)      
+    }else{
+        copyColor(newSides[5], x-1, y, 2)        
+        copyColor(newSides[0], x-1, y-1, 3)
+        copyColor(newSides[2], x+1, y-1, 5)
+        copyColor(newSides[3], x+1, y, 0)  
+    }
+    copyColor(newSides[1], x, y-1, 4) 
+    copyColor(newSides[4], x, y+1, 1)
+}
+layout = Layout(layout_flat, {x:width*.25, y:width*.25}, {x:50,y:50+.25*height})
+function shuffle(array) {
+    for (var i = array.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = array[i];
+        array[i] = array[j];
+        array[j] = temp;
+    }
+    return array;
+}
+function randomInt(min,max){
+    return Math.floor(Math.random() * (max - min + 1) + min);
+}
+function rI() {
+    return randomInt(0,2)
+}
+function getnonsetfromset(setlist){
+
+    nonset = [0,1,2,3,4,5]
+
+    for(i=0;i<setlist.length;i++){
+        if(nonset.indexOf(setlist[i]) != -1){
+            nonset.splice(nonset.indexOf(setlist[i]),1)
+        }
+    }
+    return shuffle(nonset)
+}
+
+
+
+
+
+hexagons = []
+
+for(x=0;x<mapwidth;x++){
+    hexagons[x] = []
+    for(y=0;y<mapheight;y++){
+        mod = 0
+        if(x%2 == 0){mod = .5*height}
+        newhex = {x_pos: x, y_pos: y, x:100+x*width*.75, y: 100+y*height*1+mod, sides : [0,0,0,0,0,0],colored : false, stuck : false}
+        setsides = []
+        setcolors = []
+        if(x > 0 && y > 0 && x%2==1){setcolors.push(hexagons[x-1][y-1].sides[3]);setsides.push(0);newhex.sides[0] = hexagons[x-1][y-1].sides[3]}
+        if(x > 0 && x%2==0){setcolors.push(hexagons[x-1][y].sides[3]);setsides.push(0);newhex.sides[0] = hexagons[x-1][y].sides[3]}
+        if(y > 0){setcolors.push(hexagons[x][y-1].sides[4]);setsides.push(1);newhex.sides[1] = hexagons[x][y-1].sides[4]}
+        if(x > 0 && x%2==1 ){setcolors.push(hexagons[x-1][y].sides[2]);setsides.push(5);newhex.sides[5] = hexagons[x-1][y].sides[2]}
+        if(x > 0 && x%2==0 && y < mapheight-1 ){setcolors.push(hexagons[x-1][y+1].sides[2]);setsides.push(5);newhex.sides[5] = hexagons[x-1][y+1].sides[2]}
+        
+        colorstouse = shuffle([0,0,1,1,2,2])
+        for(i=0;i<setcolors.length;i++){
+            setcolor = setcolors[i]
+            if(colorstouse.indexOf(setcolor) != -1){
+                colorstouse.splice(colorstouse.indexOf(setcolor), 1)
+            }else{
+                colorstouse.pop()
+            }
+        }
+        nonset = getnonsetfromset(setsides)
+        for(i=0;i<nonset.length;i++){
+            sidetoset = nonset[i];
+            newhex.sides[sidetoset] = colorstouse.pop()
+        }
+
+        hexagons[x][y] = newhex
+    }
+}
+c2.lineWidth = 5;
+c2.lineCap="round";
+
+function drawColoredLine(x, y, X, Y, c){
+    c2.beginPath();
+    c2.moveTo(x,y);
+    c2.lineTo(X,Y)
+    c2.strokeStyle = c
+    c2.stroke();
+    c2.closePath;
+}
+function drawHexSide(x,xm, y,ym, X,Xm, Y,Ym, width, height, c){
+
+    c2.beginPath();
+    c2.lineCap="round";
+    vector = {x:(X+Xm*width)-(x+xm*width),y:(Y+Ym*height)-(y+ym*height), length:0}
+
+    vector.length = Math.sqrt(vector.x**2+vector.y**2)
+    nvector = {x:vector.x/vector.length, y: vector.y/vector.length}
+
+        
+    endMargin = 15;
+    c2.moveTo(x+xm*width+nvector.x*endMargin,y+ym*height+nvector.y*endMargin);
+    c2.lineTo(X+Xm*width-nvector.x*endMargin,Y+Ym*height-nvector.y*endMargin);
+
+    //c2.closePath();
+    c2.strokeStyle = c
+    c2.lineWidth = 15;
+    c2.stroke();
+}
+function drawHexagon(x, y, width, height, color, fill){
+    c2.beginPath();
+    c2.moveTo(x-.5*width, y);
+    c2.lineTo(x-.25*width, y-.5*height);
+    c2.lineTo(x+.25*width, y-.5*height)
+    c2.lineTo(x+.5*width, y);
+    c2.lineTo(x+.25*width, y+.5*height);
+    c2.lineTo(x-.25*width, y+.5*height);
+    c2.lineTo(x-.5*width, y);
+    c2.lineWidth = 1;
+    if(fill){
+        c2.fillStyle = color;
+        c2.fill();
+    }else{
+        c2.strokeStyle = color;
+        c2.stroke();
+    }
+}
+function drawMap(){
+    c2.clearRect(0, 0, canvaswidth, canvasheight)
+    for (var i=0; i < coloredHexes.length; i++){
+        pos = coloredHexes[i]
+        hex = hexagons[pos.x][pos.y]
+        drawHexagon(hex.x, hex.y, width, height, colorsFill[hex.colored], true)
+    }
+    for (var i=0; i < stuckHexes.length; i++){
+        pos = stuckHexes[i]
+        hex = hexagons[pos.x][pos.y]
+        if(typeof hex.colored != 'boolean'){continue}
+        drawHexagon(hex.x, hex.y, width, height, stuckColor, true)
+    }
+    for (var X=0; X < hexagons.length; X++){
+        for (var Y=0; Y < hexagons[X].length; Y++){
+            hexagon = hexagons[X][Y]
+            
+
+            x = hexagon.x
+            y = hexagon.y
+            drawHexagon(x, y, width, height, "#bbb", false)
+            c2.beginPath();
+            c2.arc(x,y,2,0,2*Math.PI);
+            c2.strokeStyle = "#444"
+            //c2.stroke();
+            w = width
+            h = height
+            drawHexSide(x,-0.5, y,0, x,-0.25,y,-0.5, w, h, colors[hexagon.sides[0]])
+            drawHexSide(x,-0.25, y,-0.5, x,0.25,y,-0.5, w, h, colors[hexagon.sides[1]])
+            drawHexSide(x,.25, y,-0.5, x,0.5,y,0, w, h, colors[hexagon.sides[2]])
+            drawHexSide(x,0.5, y,0, x,0.25,y,0.5, w, h, colors[hexagon.sides[3]])
+            drawHexSide(x,0.25, y,0.5, x,-0.25,y,0.5, w, h, colors[hexagon.sides[4]])           
+            drawHexSide(x,-0.25, y,0.5, x,-0.5,y,0, w, h, colors[hexagon.sides[5]])
+            
+        }
+    }
+}
+drawMap()
+</script> 
